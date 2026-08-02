@@ -1,6 +1,8 @@
 const state = {
   competitions: [],
   currentCode: null,
+  notifEnabled: false,
+  seenSuspicions: new Set(),
 };
 
 const el = (sel) => document.querySelector(sel);
@@ -26,6 +28,45 @@ async function loadStatus() {
       dot.title = "Aucune API configurée";
     }
   } catch (e) { /* silencieux */ }
+}
+
+// ---------------------- Notifications (pendant que l'app est ouverte) ----------------------
+function setupNotifications() {
+  const btn = el("#notifBtn");
+  if (!("Notification" in window)) {
+    btn.style.display = "none";
+    return;
+  }
+  if (Notification.permission === "granted") {
+    state.notifEnabled = true;
+    btn.classList.add("enabled");
+  }
+  btn.addEventListener("click", async () => {
+    if (Notification.permission === "granted") {
+      state.notifEnabled = !state.notifEnabled;
+      btn.classList.toggle("enabled", state.notifEnabled);
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    state.notifEnabled = perm === "granted";
+    btn.classList.toggle("enabled", state.notifEnabled);
+  });
+}
+
+function notifyNewSuspicions(code, results) {
+  if (!state.notifEnabled) return;
+  for (const r of results) {
+    if (r.suspicion_score < 50) continue;
+    const key = `${code}:${r.home}:${r.away}`;
+    if (state.seenSuspicions.has(key)) continue;
+    state.seenSuspicions.add(key);
+    try {
+      new Notification("⚠️ Signal MatchGuard", {
+        body: `${r.home} vs ${r.away} — score de suspicion ${r.suspicion_score}/100`,
+        icon: "/static/icon-192.png",
+      });
+    } catch (e) { /* silencieux si le navigateur refuse */ }
+  }
 }
 
 // ---------------------- Compétitions ----------------------
@@ -197,15 +238,76 @@ async function runOdds() {
       showEmpty("#results-odds", "Aucune cote disponible actuellement pour ce championnat.");
       return;
     }
-    el("#results-odds").innerHTML = odds.map((o) => `
+    el("#results-odds").innerHTML = odds.map((o) => {
+      const p = o.probabilities;
+      const overround = p.overround_pct !== undefined ? p.overround_pct : null;
+      return `
       <div class="card">
         <div class="card-title">${o.home} vs ${o.away}</div>
-        <div class="card-row"><span class="label">Domicile</span><span class="value">${Math.round(o.probabilities.home * 100)}%</span></div>
-        ${o.probabilities.draw !== null ? `<div class="card-row"><span class="label">Nul</span><span class="value">${Math.round(o.probabilities.draw * 100)}%</span></div>` : ""}
-        <div class="card-row"><span class="label">Extérieur</span><span class="value">${Math.round(o.probabilities.away * 100)}%</span></div>
+        <div class="card-row"><span class="label">Domicile (net / brut)</span><span class="value">${Math.round(p.home * 100)}% / ${Math.round((p.home_raw ?? p.home) * 100)}%</span></div>
+        ${p.draw !== null ? `<div class="card-row"><span class="label">Nul (net / brut)</span><span class="value">${Math.round(p.draw * 100)}% / ${Math.round((p.draw_raw ?? p.draw) * 100)}%</span></div>` : ""}
+        <div class="card-row"><span class="label">Extérieur (net / brut)</span><span class="value">${Math.round(p.away * 100)}% / ${Math.round((p.away_raw ?? p.away) * 100)}%</span></div>
+        ${overround !== null ? `<div class="card-row"><span class="label">Marge bookmaker</span><span class="badge amber">${overround}%</span></div>` : ""}
+      </div>
+    `;
+    }).join("");
+  } catch (e) { showError("#results-odds", `Erreur : ${e.message}`); }
+}
+
+// ---------------------- Score de suspicion combiné (/suspicion) ----------------------
+async function runSuspicion() {
+  const code = state.currentCode;
+  showLoading("#results-suspicion", "Calcul du score de suspicion");
+  try {
+    const data = await fetchJSON(`/api/suspicion/${code}`);
+    const results = data.results || [];
+    if (results.length === 0) {
+      showEmpty("#results-suspicion", "Aucun signal combiné pour l'instant (value bet ou mouvement de cote).");
+      return;
+    }
+    notifyNewSuspicions(code, results);
+    el("#results-suspicion").innerHTML = results.map((r) => {
+      const cls = r.suspicion_score >= 50 ? "alert" : "";
+      return `
+      <div class="card ${cls}">
+        <div class="card-title">${r.home} vs ${r.away}</div>
+        <div class="card-row"><span class="label">Score de suspicion</span><span class="badge ${r.suspicion_score >= 50 ? "amber" : ""}">${r.suspicion_score}/100</span></div>
+        <div class="card-row"><span class="label">Écart value</span><span class="value">${r.value_edge}pt</span></div>
+        <div class="card-row"><span class="label">Mouvement cotes</span><span class="value">${r.odds_movement}pt</span></div>
+      </div>
+    `;
+    }).join("");
+  } catch (e) { showError("#results-suspicion", `Erreur : ${e.message}`); }
+}
+
+// ---------------------- Suivi de fiabilité (/calibration) ----------------------
+async function runCalibration() {
+  showLoading("#results-calibration", "Chargement du suivi");
+  try {
+    const data = await fetchJSON("/api/calibration");
+    if (!data.total_resolved) {
+      showEmpty("#results-calibration", `${data.total_tracked} pronostic(s) en attente de résultat. Reviens après que les matchs soient joués pour voir la fiabilité du modèle.`);
+      return;
+    }
+    let html = `
+      <div class="card">
+        <div class="card-title">Fiabilité globale (${data.total_resolved} match(s) résolus sur ${data.total_tracked} suivis)</div>
+        <div class="card-row"><span class="label">1X2 correct</span><span class="value">${data.hit_rate_1x2}%</span></div>
+        <div class="card-row"><span class="label">Plus/Moins 2.5 correct</span><span class="value">${data.hit_rate_over25}%</span></div>
+        <div class="card-row"><span class="label">2 équipes marquent correct</span><span class="value">${data.hit_rate_btts}%</span></div>
+      </div>
+    `;
+    html += (data.recent || []).map((e) => `
+      <div class="card">
+        <div class="card-title">${e.home} vs ${e.away}</div>
+        <div class="card-date">${e.date} — score réel ${e.actual.score}</div>
+        <div class="card-row"><span class="label">1X2</span><span class="value">${e.pick_1x2} ${e.actual.hit_1x2 ? "✅" : "❌"}</span></div>
+        <div class="card-row"><span class="label">Plus/Moins 2.5</span><span class="value">${e.pick_over25} ${e.actual.hit_over25 ? "✅" : "❌"}</span></div>
+        <div class="card-row"><span class="label">2 équipes marquent</span><span class="value">${e.pick_btts} ${e.actual.hit_btts ? "✅" : "❌"}</span></div>
       </div>
     `).join("");
-  } catch (e) { showError("#results-odds", `Erreur : ${e.message}`); }
+    el("#results-calibration").innerHTML = html;
+  } catch (e) { showError("#results-calibration", `Erreur : ${e.message}`); }
 }
 
 // ---------------------- Value bets (/value) ----------------------
@@ -254,7 +356,10 @@ async function runLive() {
 
 // ---------------------- Câblage des boutons ----------------------
 function setupButtons() {
-  const actions = { check: runCheck, predict: runPredict, elo: runElo, odds: runOdds, value: runValue, live: runLive };
+  const actions = {
+    check: runCheck, predict: runPredict, suspicion: runSuspicion, elo: runElo,
+    odds: runOdds, value: runValue, live: runLive, calibration: runCalibration,
+  };
   document.querySelectorAll(".run-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       btn.disabled = true;
@@ -267,6 +372,7 @@ function setupButtons() {
 (async function init() {
   setupTabs();
   setupButtons();
+  setupNotifications();
   loadStatus();
   await loadCompetitions();
 })();
