@@ -23,6 +23,7 @@
       <span class="brand-sub">vigie stats foot</span>
     </div>
   </div>
+  <button class="notif-btn" id="notifBtn" title="Activer les notifications (pendant que l'app est ouverte)">🔔</button>
   <div class="status-dot" id="statusDot" title="Statut des APIs"></div>
 </header>
 
@@ -34,10 +35,12 @@
 <nav class="tabbar" id="tabbar">
   <button class="tab active" data-tab="check">Anomalies</button>
   <button class="tab" data-tab="predict">Pronostics</button>
+  <button class="tab" data-tab="suspicion">Suspicion</button>
   <button class="tab" data-tab="elo">Élo</button>
   <button class="tab" data-tab="odds">Cotes</button>
   <button class="tab" data-tab="value">Value</button>
   <button class="tab" data-tab="live">Live</button>
+  <button class="tab" data-tab="calibration">Suivi</button>
 </nav>
 
 <main id="content">
@@ -54,6 +57,12 @@
     <div class="results" id="results-predict"></div>
   </section>
 
+  <section class="panel" id="panel-suspicion">
+    <p class="panel-hint">Score combiné (0-100) mêlant l'écart de value bet et le mouvement de cotes des matchs à venir — un seul indicateur au lieu de consulter chaque onglet séparément.</p>
+    <button class="run-btn" data-action="suspicion">Calculer le score</button>
+    <div class="results" id="results-suspicion"></div>
+  </section>
+
   <section class="panel" id="panel-elo">
     <p class="panel-hint">Rating Élo (clubelo.com) et courbe de progression sur 12 mois pour deux équipes.</p>
     <div class="elo-inputs">
@@ -65,13 +74,13 @@
   </section>
 
   <section class="panel" id="panel-odds">
-    <p class="panel-hint">Probabilités 1X2 issues des cotes du marché, et mouvements notables depuis ta dernière vérification.</p>
+    <p class="panel-hint">Probabilités 1X2 issues des cotes du marché (nettes, marge retirée), et marge du bookmaker affichée pour transparence.</p>
     <button class="run-btn" data-action="odds">Vérifier les cotes</button>
     <div class="results" id="results-odds"></div>
   </section>
 
   <section class="panel" id="panel-value">
-    <p class="panel-hint">Compare le modèle Poisson aux cotes du marché (Plus/Moins 2.5) pour repérer une éventuelle "value".</p>
+    <p class="panel-hint">Compare le modèle Poisson aux cotes nettes du marché (Plus/Moins 2.5) pour repérer une éventuelle "value".</p>
     <button class="run-btn" data-action="value">Chercher une value</button>
     <div class="results" id="results-value"></div>
   </section>
@@ -80,6 +89,12 @@
     <p class="panel-hint">Matchs en cours et sursauts de buts suspects (dépend d'une vérification précédente pour comparer).</p>
     <button class="run-btn" data-action="live">Voir le direct</button>
     <div class="results" id="results-live"></div>
+  </section>
+
+  <section class="panel" id="panel-calibration">
+    <p class="panel-hint">Fiabilité du modèle dans le temps : chaque pronostic calculé est mémorisé, puis comparé au résultat réel une fois le match joué.</p>
+    <button class="run-btn" data-action="calibration">Voir le suivi</button>
+    <div class="results" id="results-calibration"></div>
   </section>
 
 </main>
@@ -91,3 +106,4 @@
 <script src="/static/app.js"></script>
 </body>
 </html>
+
