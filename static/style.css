@@ -79,6 +79,17 @@ body {
 .status-dot.ok { background: var(--cyan); box-shadow: 0 0 0 3px rgba(15, 240, 252, 0.18); }
 .status-dot.partial { background: var(--amber); box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.18); }
 
+.notif-btn {
+  background: none;
+  border: none;
+  font-size: 1.15rem;
+  padding: 6px;
+  margin-right: 4px;
+  opacity: 0.5;
+  line-height: 1;
+}
+.notif-btn.enabled { opacity: 1; filter: drop-shadow(0 0 4px rgba(15, 240, 252, 0.5)); }
+
 /* ---- Competition bar ---- */
 .comp-bar {
   display: flex;
@@ -277,3 +288,4 @@ main { padding: 14px 16px 30px; }
   outline: 2px solid var(--cyan);
   outline-offset: 2px;
 }
+
