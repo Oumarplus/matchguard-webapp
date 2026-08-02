@@ -219,6 +219,25 @@ main { padding: 14px 16px 30px; }
   font-weight: 600;
   font-size: 0.95rem;
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.team-crest {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.comp-emblem {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  opacity: 0.85;
+  margin-right: 2px;
 }
 
 .card-date {
@@ -288,4 +307,3 @@ main { padding: 14px 16px 30px; }
   outline: 2px solid var(--cyan);
   outline-offset: 2px;
 }
-
