@@ -33,7 +33,8 @@
 </div>
 
 <nav class="tabbar" id="tabbar">
-  <button class="tab active" data-tab="check">Anomalies</button>
+  <button class="tab active" data-tab="fixtures">Matchs</button>
+  <button class="tab" data-tab="check">Anomalies</button>
   <button class="tab" data-tab="predict">Pronostics</button>
   <button class="tab" data-tab="suspicion">Suspicion</button>
   <button class="tab" data-tab="elo">Élo</button>
@@ -45,7 +46,13 @@
 
 <main id="content">
 
-  <section class="panel active" id="panel-check">
+  <section class="panel active" id="panel-fixtures">
+    <p class="panel-hint">Liste des matchs à venir (7 prochains jours) avec l'heure de chaque rencontre, convertie dans ton fuseau horaire.</p>
+    <button class="run-btn" data-action="fixtures">Voir les matchs</button>
+    <div class="results" id="results-fixtures"></div>
+  </section>
+
+  <section class="panel" id="panel-check">
     <p class="panel-hint">Repère les matchs joués récemment avec un nombre de buts, une répartition mi-temps, ou un historique face-à-face inhabituel.</p>
     <button class="run-btn" data-action="check">Analyser</button>
     <div class="results" id="results-check"></div>
@@ -106,4 +113,3 @@
 <script src="/static/app.js"></script>
 </body>
 </html>
-
