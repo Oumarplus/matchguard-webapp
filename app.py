@@ -117,6 +117,17 @@ def fd_get(endpoint: str, params: dict = None) -> dict:
         return resp.json()
 
 
+def _attach_competition_emblem(data: dict) -> list:
+    """L'emblème du championnat est renvoyé une fois au niveau global de la
+    réponse (pas par match) — on le recopie sur chaque match pour l'avoir
+    facilement disponible dans le frontend."""
+    emblem = data.get("competition", {}).get("emblem")
+    matches = data.get("matches", [])
+    for m in matches:
+        m["_comp_emblem"] = emblem
+    return matches
+
+
 def get_finished_matches(competition_code: str, days_back: int = 14) -> list:
     date_from = (datetime.utcnow() - timedelta(days=days_back)).strftime("%Y-%m-%d")
     date_to = datetime.utcnow().strftime("%Y-%m-%d")
@@ -124,7 +135,7 @@ def get_finished_matches(competition_code: str, days_back: int = 14) -> list:
         f"/competitions/{competition_code}/matches",
         params={"status": "FINISHED", "dateFrom": date_from, "dateTo": date_to},
     )
-    return data.get("matches", [])
+    return _attach_competition_emblem(data)
 
 
 def get_upcoming_matches(competition_code: str, days_ahead: int = PREDICT_DAYS_AHEAD) -> list:
@@ -134,12 +145,12 @@ def get_upcoming_matches(competition_code: str, days_ahead: int = PREDICT_DAYS_A
         f"/competitions/{competition_code}/matches",
         params={"status": "SCHEDULED", "dateFrom": date_from, "dateTo": date_to},
     )
-    return data.get("matches", [])
+    return _attach_competition_emblem(data)
 
 
 def get_live_matches(competition_code: str) -> list:
     data = fd_get(f"/competitions/{competition_code}/matches", params={"status": "LIVE"})
-    return data.get("matches", [])
+    return _attach_competition_emblem(data)
 
 
 def get_team_recent_totals(team_id: int, before_date: str) -> list:
@@ -262,6 +273,8 @@ def analyze_match(match: dict) -> dict | None:
         return None
     return {
         "home": home["name"], "away": away["name"],
+        "home_crest": home.get("crest"), "away_crest": away.get("crest"),
+        "competition_emblem": match.get("_comp_emblem"),
         "score": f"{score['home']}-{score['away']}",
         "date": match["utcDate"][:10],
         "signals": signals,
@@ -443,6 +456,8 @@ def predict_match(match: dict) -> dict | None:
 
     return {
         "match_id": match["id"],
+        "home_crest": home.get("crest"), "away_crest": away.get("crest"),
+        "competition_emblem": match.get("_comp_emblem"),
         "home": home["name"], "away": away["name"],
         "date": match["utcDate"][:16].replace("T", " "),
         "lambda_home": round(lambda_home, 2), "lambda_away": round(lambda_away, 2),
@@ -455,6 +470,23 @@ def predict_match(match: dict) -> dict | None:
         "elo_away": scale_elo_for_display(elo_away) if elo_away else None,
         "absences": absences,
     }
+
+
+def get_fixtures(competition_code: str, days_ahead: int = PREDICT_DAYS_AHEAD) -> list:
+    """Liste simple des matchs à venir avec heure — sans calcul de pronostic,
+    utile même quand /predict ne peut rien afficher (pas assez d'historique)."""
+    matches = get_upcoming_matches(competition_code, days_ahead)
+    out = []
+    for m in matches:
+        out.append({
+            "home": m["homeTeam"]["name"], "away": m["awayTeam"]["name"],
+            "home_crest": m["homeTeam"].get("crest"), "away_crest": m["awayTeam"].get("crest"),
+            "competition_emblem": m.get("_comp_emblem"),
+            "utc_date": m["utcDate"],
+            "matchday": m.get("matchday"),
+        })
+    out.sort(key=lambda x: x["utc_date"])
+    return out
 
 
 def get_predictions(competition_code: str) -> list:
@@ -731,7 +763,15 @@ def get_odds_snapshot(competition_code: str) -> list:
         probs = implied_probabilities_h2h(event)
         if not probs:
             continue
-        results.append({"home": event.get("home_team"), "away": event.get("away_team"), "probabilities": probs})
+        totals = {}
+        for line in (2.5, 3.5):
+            t = implied_probabilities_totals(event, line)
+            if t:
+                totals[str(line)] = t
+        results.append({
+            "home": event.get("home_team"), "away": event.get("away_team"),
+            "probabilities": probs, "totals": totals,
+        })
     return results
 
 
@@ -824,6 +864,8 @@ def get_live_snapshot(competition_code: str) -> list:
 
         results.append({
             "home": m["homeTeam"]["name"], "away": m["awayTeam"]["name"],
+            "home_crest": m["homeTeam"].get("crest"), "away_crest": m["awayTeam"].get("crest"),
+            "competition_emblem": m.get("_comp_emblem"),
             "score": f"{home_goals}-{away_goals}", "minute": current_minute, "alert": alert,
         })
     save_json_state(LIVE_STATE_FILE, state)
@@ -859,6 +901,17 @@ def api_check(code):
         return jsonify({"error": "Code inconnu"}), 404
     try:
         return jsonify({"competition": COMPETITIONS[code], "matches": find_suspicious_matches(code)})
+    except requests.HTTPError as e:
+        return jsonify({"error": str(e)}), 502
+
+
+@app.route("/api/fixtures/<code>")
+def api_fixtures(code):
+    code = code.upper()
+    if code not in COMPETITIONS:
+        return jsonify({"error": "Code inconnu"}), 404
+    try:
+        return jsonify({"competition": COMPETITIONS[code], "fixtures": get_fixtures(code)})
     except requests.HTTPError as e:
         return jsonify({"error": str(e)}), 502
 
@@ -992,3 +1045,4 @@ def api_status():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+        
