@@ -69,6 +69,7 @@ SECOND_HALF_SHARE_THRESHOLD = 0.75
 SECOND_HALF_MIN_GOALS = 3
 H2H_MIN_MATCHES = 3
 PREDICT_DAYS_AHEAD = 7
+MAX_PREDICT_MATCHES = 4  # limite le nb de matchs analysés par requête (évite un timeout Render)
 PREDICT_HISTORY_WINDOW = 8
 GOAL_LINES = [1.5, 2.5, 3.5]
 MAX_GOALS_SIMULATED = 8
@@ -283,6 +284,7 @@ def analyze_match(match: dict) -> dict | None:
 
 def find_suspicious_matches(competition_code: str) -> list:
     matches = get_finished_matches(competition_code)
+    matches = matches[-MAX_PREDICT_MATCHES:]  # borne le temps total (limiteur de débit + Render timeout)
     results = [analyze_match(m) for m in matches]
     results = [r for r in results if r]
     results.sort(key=lambda x: len(x["signals"]), reverse=True)
@@ -491,6 +493,8 @@ def get_fixtures(competition_code: str, days_ahead: int = PREDICT_DAYS_AHEAD) ->
 
 def get_predictions(competition_code: str) -> list:
     matches = get_upcoming_matches(competition_code)
+    matches.sort(key=lambda m: m["utcDate"])
+    matches = matches[:MAX_PREDICT_MATCHES]  # borne le temps total (limiteur de débit + Render timeout)
     results = []
     for m in matches:
         try:
@@ -780,6 +784,8 @@ def find_value_bets(competition_code: str) -> list:
     if not sport_key:
         return []
     matches = get_upcoming_matches(competition_code)
+    matches.sort(key=lambda m: m["utcDate"])
+    matches = matches[:MAX_PREDICT_MATCHES]
     events = get_current_odds(sport_key)
     if not events:
         return []
@@ -1045,4 +1051,3 @@ def api_status():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-        
