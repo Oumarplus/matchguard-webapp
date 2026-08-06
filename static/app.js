@@ -115,6 +115,41 @@ async function fetchJSON(url) {
   return data;
 }
 
+function crestImg(url, alt) {
+  return url ? `<img src="${url}" alt="${alt}" class="team-crest" loading="lazy" onerror="this.style.display='none'">` : "";
+}
+
+function emblemImg(url) {
+  return url ? `<img src="${url}" alt="" class="comp-emblem" loading="lazy" onerror="this.style.display='none'">` : "";
+}
+
+function formatLocalDateTime(isoString) {
+  const d = new Date(isoString);
+  const datePart = d.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
+  const timePart = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return `${datePart} — ${timePart}`;
+}
+
+// ---------------------- Matchs à venir (/fixtures) ----------------------
+async function runFixtures() {
+  const code = state.currentCode;
+  showLoading("#results-fixtures", "Récupération des matchs à venir");
+  try {
+    const data = await fetchJSON(`/api/fixtures/${code}`);
+    const fixtures = data.fixtures || [];
+    if (fixtures.length === 0) {
+      showEmpty("#results-fixtures", "Aucun match programmé dans les 7 prochains jours pour ce championnat.");
+      return;
+    }
+    el("#results-fixtures").innerHTML = fixtures.map((f) => `
+      <div class="card">
+        <div class="card-title">${emblemImg(f.competition_emblem)}${crestImg(f.home_crest, f.home)} ${f.home} vs ${f.away} ${crestImg(f.away_crest, f.away)}</div>
+        <div class="card-date">${formatLocalDateTime(f.utc_date)}${f.matchday ? ` · Journée ${f.matchday}` : ""}</div>
+      </div>
+    `).join("");
+  } catch (e) { showError("#results-fixtures", `Erreur : ${e.message}`); }
+}
+
 // ---------------------- Anomalies (/check) ----------------------
 async function runCheck() {
   const code = state.currentCode;
@@ -128,7 +163,7 @@ async function runCheck() {
     }
     el("#results-check").innerHTML = matches.map((m) => `
       <div class="card alert">
-        <div class="card-title">${m.home} ${m.score} ${m.away}</div>
+        <div class="card-title">${emblemImg(m.competition_emblem)}${crestImg(m.home_crest, m.home)} ${m.home} ${m.score} ${m.away} ${crestImg(m.away_crest, m.away)}</div>
         <div class="card-date">${m.date}</div>
         ${m.signals.map((s) => `<div class="signal-line">[${s.type}] ${s.detail}</div>`).join("")}
       </div>
@@ -162,7 +197,7 @@ function renderPrediction(p) {
 
   return `
     <div class="card">
-      <div class="card-title">${p.home} vs ${p.away}</div>
+      <div class="card-title">${emblemImg(p.competition_emblem)}${crestImg(p.home_crest, p.home)} ${p.home} vs ${p.away} ${crestImg(p.away_crest, p.away)}</div>
       <div class="card-date">${p.date}</div>
       ${eloLine}
       ${formLine}
@@ -241,13 +276,19 @@ async function runOdds() {
     el("#results-odds").innerHTML = odds.map((o) => {
       const p = o.probabilities;
       const overround = p.overround_pct !== undefined ? p.overround_pct : null;
+      const totalsLines = Object.entries(o.totals || {}).map(([line, t]) => `
+        <div class="card-row"><span class="label">Plus ${line} (net / brut)</span><span class="value">${Math.round(t.over * 100)}% / ${Math.round(t.over_raw * 100)}%</span></div>
+        <div class="card-row"><span class="label">Moins ${line} (net / brut)</span><span class="value">${Math.round(t.under * 100)}% / ${Math.round(t.under_raw * 100)}%</span></div>
+        <div class="card-row"><span class="label">Marge (${line})</span><span class="badge amber">${t.overround_pct}%</span></div>
+      `).join("");
       return `
       <div class="card">
         <div class="card-title">${o.home} vs ${o.away}</div>
         <div class="card-row"><span class="label">Domicile (net / brut)</span><span class="value">${Math.round(p.home * 100)}% / ${Math.round((p.home_raw ?? p.home) * 100)}%</span></div>
         ${p.draw !== null ? `<div class="card-row"><span class="label">Nul (net / brut)</span><span class="value">${Math.round(p.draw * 100)}% / ${Math.round((p.draw_raw ?? p.draw) * 100)}%</span></div>` : ""}
         <div class="card-row"><span class="label">Extérieur (net / brut)</span><span class="value">${Math.round(p.away * 100)}% / ${Math.round((p.away_raw ?? p.away) * 100)}%</span></div>
-        ${overround !== null ? `<div class="card-row"><span class="label">Marge bookmaker</span><span class="badge amber">${overround}%</span></div>` : ""}
+        ${overround !== null ? `<div class="card-row"><span class="label">Marge 1X2</span><span class="badge amber">${overround}%</span></div>` : ""}
+        ${totalsLines}
       </div>
     `;
     }).join("");
@@ -346,7 +387,7 @@ async function runLive() {
     }
     el("#results-live").innerHTML = matches.map((m) => `
       <div class="card ${m.alert ? "alert" : ""}">
-        <div class="card-title">${m.home} ${m.score} ${m.away}</div>
+        <div class="card-title">${emblemImg(m.competition_emblem)}${crestImg(m.home_crest, m.home)} ${m.home} ${m.score} ${m.away} ${crestImg(m.away_crest, m.away)}</div>
         <div class="card-date">Minute ${m.minute ?? "?"}</div>
         ${m.alert ? `<div class="signal-line">⚠️ ${m.alert}</div>` : ""}
       </div>
@@ -357,7 +398,7 @@ async function runLive() {
 // ---------------------- Câblage des boutons ----------------------
 function setupButtons() {
   const actions = {
-    check: runCheck, predict: runPredict, suspicion: runSuspicion, elo: runElo,
+    fixtures: runFixtures, check: runCheck, predict: runPredict, suspicion: runSuspicion, elo: runElo,
     odds: runOdds, value: runValue, live: runLive, calibration: runCalibration,
   };
   document.querySelectorAll(".run-btn").forEach((btn) => {
@@ -369,7 +410,21 @@ function setupButtons() {
 }
 
 // ---------------------- Démarrage ----------------------
+function setupTelegramWebApp() {
+  // Best effort : si l'app est ouverte dans Telegram (Mini App), adapte
+  // l'affichage (plein écran, thème). Sans effet dans un navigateur normal.
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (!tg) return;
+  try {
+    tg.ready();
+    tg.expand();
+    if (tg.setHeaderColor) tg.setHeaderColor("#0a1420");
+    if (tg.setBackgroundColor) tg.setBackgroundColor("#0a1420");
+  } catch (e) { /* silencieux si une méthode n'est pas supportée */ }
+}
+
 (async function init() {
+  setupTelegramWebApp();
   setupTabs();
   setupButtons();
   setupNotifications();
