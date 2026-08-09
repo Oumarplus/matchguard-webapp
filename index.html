@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MatchGuard — Stats Foot</title>
+<meta name="theme-color" content="#0a1420">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="/static/icon-192.png" alt="" class="brand-icon">
+    <div class="brand-text">
+      <span class="brand-name">MatchGuard</span>
+      <span class="brand-sub">vigie stats foot</span>
+    </div>
+  </div>
+  <button class="notif-btn" id="notifBtn" title="Activer les notifications (pendant que l'app est ouverte)">🔔</button>
+  <div class="status-dot" id="statusDot" title="Statut des APIs"></div>
+</header>
+
+<div class="comp-bar">
+  <label for="compSelect" class="comp-label">Championnat</label>
+  <select id="compSelect" class="comp-select"></select>
+</div>
+
+<nav class="tabbar" id="tabbar">
+  <button class="tab active" data-tab="fixtures">Matchs</button>
+  <button class="tab" data-tab="check">Anomalies</button>
+  <button class="tab" data-tab="predict">Pronostics</button>
+  <button class="tab" data-tab="suspicion">Suspicion</button>
+  <button class="tab" data-tab="elo">Élo</button>
+  <button class="tab" data-tab="odds">Cotes</button>
+  <button class="tab" data-tab="value">Value</button>
+  <button class="tab" data-tab="live">Live</button>
+  <button class="tab" data-tab="calibration">Suivi</button>
+</nav>
+
+<main id="content">
+
+  <section class="panel active" id="panel-fixtures">
+    <p class="panel-hint">Liste des matchs à venir (7 prochains jours) avec l'heure de chaque rencontre, convertie dans ton fuseau horaire.</p>
+    <button class="run-btn" data-action="fixtures">Voir les matchs</button>
+    <div class="results" id="results-fixtures"></div>
+  </section>
+
+  <section class="panel" id="panel-check">
+    <p class="panel-hint">Repère les matchs joués récemment avec un nombre de buts, une répartition mi-temps, ou un historique face-à-face inhabituel. (jusqu'à 3 matchs à la fois)</p>
+    <button class="run-btn" data-action="check">Analyser</button>
+    <div class="results" id="results-check"></div>
+  </section>
+
+  <section class="panel" id="panel-predict">
+    <p class="panel-hint">Pronostics (modèle de Poisson) pour les matchs à venir : 1X2, buts, scores probables, Élo, forme, absences. (jusqu'à 3 matchs à la fois)</p>
+    <button class="run-btn" data-action="predict">Calculer</button>
+    <div class="results" id="results-predict"></div>
+  </section>
+
+  <section class="panel" id="panel-suspicion">
+    <p class="panel-hint">Score combiné (0-100) mêlant l'écart de value bet et le mouvement de cotes des matchs à venir — un seul indicateur au lieu de consulter chaque onglet séparément.</p>
+    <button class="run-btn" data-action="suspicion">Calculer le score</button>
+    <div class="results" id="results-suspicion"></div>
+  </section>
+
+  <section class="panel" id="panel-elo">
+    <p class="panel-hint">Rating Élo (calcul maison, basé sur les résultats réels) et courbe de progression sur 12 mois pour deux équipes.</p>
+    <div class="elo-inputs">
+      <input type="text" id="eloHome" placeholder="Équipe 1 (ex: Real Madrid)" class="text-input">
+      <input type="text" id="eloAway" placeholder="Équipe 2 (optionnel)" class="text-input">
+    </div>
+    <button class="run-btn" data-action="elo">Voir l'Élo</button>
+    <div class="results" id="results-elo"></div>
+  </section>
+
+  <section class="panel" id="panel-odds">
+    <p class="panel-hint">Probabilités 1X2 issues des cotes du marché (nettes, marge retirée), et marge du bookmaker affichée pour transparence.</p>
+    <button class="run-btn" data-action="odds">Vérifier les cotes</button>
+    <div class="results" id="results-odds"></div>
+  </section>
+
+  <section class="panel" id="panel-value">
+    <p class="panel-hint">Compare le modèle Poisson aux cotes nettes du marché (Plus/Moins 2.5) pour repérer une éventuelle "value". (jusqu'à 3 matchs à la fois)</p>
+    <button class="run-btn" data-action="value">Chercher une value</button>
+    <div class="results" id="results-value"></div>
+  </section>
+
+  <section class="panel" id="panel-live">
+    <p class="panel-hint">Matchs en cours et sursauts de buts suspects (dépend d'une vérification précédente pour comparer).</p>
+    <button class="run-btn" data-action="live">Voir le direct</button>
+    <div class="results" id="results-live"></div>
+  </section>
+
+  <section class="panel" id="panel-calibration">
+    <p class="panel-hint">Fiabilité du modèle dans le temps : chaque pronostic calculé est mémorisé, puis comparé au résultat réel une fois le match joué.</p>
+    <button class="run-btn" data-action="calibration">Voir le suivi</button>
+    <div class="results" id="results-calibration"></div>
+  </section>
+
+</main>
+
+<div class="disclaimer">
+  ⚠️ Outil d'analyse statistique — aucun résultat n'est une preuve de match truqué ni une garantie de gain.
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
